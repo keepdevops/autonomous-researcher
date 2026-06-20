@@ -1,0 +1,16 @@
+# Minimal SearXNG settings for the autonomous-researcher agent.
+# The key addition vs. defaults is `formats: [html, json]` — the agent's
+# search_web tool requests format=json, which is off by default.
+use_default_settings: true
+
+server:
+  # Change this to any non-empty random string. Generate one with:
+  #   openssl rand -hex 32
+  secret_key: "change-me-please-run-openssl-rand-hex-32"
+  limiter: false
+  image_proxy: true
+
+search:
+  formats:
+    - html
+    - json
