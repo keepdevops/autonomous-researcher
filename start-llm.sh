@@ -13,7 +13,7 @@ MODEL_DIR="${MODEL_DIR:-/Users/caribou/test-llama/models}"
 MODEL_FILE="${MODEL_FILE:-Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf}"
 MODEL="${MODEL:-$MODEL_DIR/$MODEL_FILE}"
 
-PORT="${PORT:-8080}"
+PORT="${PORT:-8081}"
 CTX_SIZE="${CTX_SIZE:-8192}"
 GPU_LAYERS="${GPU_LAYERS:-99}"
 # Single-user CLI agent: one slot gets the full context window. Raise only if

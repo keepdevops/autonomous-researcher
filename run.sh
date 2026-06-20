@@ -11,7 +11,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="${VENV:-$HERE/.venv}"
 
-export LLM_BASE_URL="${LLM_BASE_URL:-http://127.0.0.1:8080/v1}"
+export LLM_BASE_URL="${LLM_BASE_URL:-http://127.0.0.1:8081/v1}"
 export SEARXNG_URL="${SEARXNG_URL:-http://localhost:8888}"
 
 if [ ! -x "$VENV/bin/python" ]; then

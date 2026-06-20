@@ -13,7 +13,7 @@ VENV="${VENV:-$HERE/.venv}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8800}"
 
-export LLM_BASE_URL="${LLM_BASE_URL:-http://127.0.0.1:8080/v1}"
+export LLM_BASE_URL="${LLM_BASE_URL:-http://127.0.0.1:8081/v1}"
 export SEARXNG_URL="${SEARXNG_URL:-http://localhost:8888}"
 
 if [ ! -x "$VENV/bin/python" ]; then

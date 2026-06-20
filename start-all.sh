@@ -10,7 +10,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="$HERE/logs"
 mkdir -p "$LOG_DIR"
 
-LLM_PORT="${LLM_PORT:-8080}"
+LLM_PORT="${LLM_PORT:-8081}"
 SEARX_PORT="${SEARX_PORT:-8888}"
 export LLM_BASE_URL="http://127.0.0.1:$LLM_PORT/v1"
 export SEARXNG_URL="http://localhost:$SEARX_PORT"
