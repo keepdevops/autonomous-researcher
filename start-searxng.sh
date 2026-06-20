@@ -2,7 +2,7 @@
 #
 # start-searxng.sh — run a local SearXNG (the search_web backend) via Docker.
 #
-# Listens on :8888 to avoid colliding with the llama.cpp server on :8080.
+# Listens on :8888 to avoid colliding with the llama.cpp server on :8081.
 # Point the agent at it with:  SEARXNG_URL=http://localhost:8888
 #   PORT=9001 ./start-searxng.sh        # use a different port
 #   DETACH=1 ./start-searxng.sh         # run in the background

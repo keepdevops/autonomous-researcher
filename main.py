@@ -20,7 +20,7 @@ from tools import TOOLS_SCHEMAS, dispatch_tool
 console = Console()
 logger = logging.getLogger(__name__)
 
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://127.0.0.1:8080/v1")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://127.0.0.1:8081/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "local")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "8192"))

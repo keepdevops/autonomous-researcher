@@ -11,7 +11,7 @@ from rich.console import Console
 console = Console()
 logger = logging.getLogger(__name__)
 
-SEARXNG_URL = os.getenv("SEARXNG_URL", "http://localhost:8080")
+SEARXNG_URL = os.getenv("SEARXNG_URL", "http://localhost:8888")
 HTTP_TIMEOUT = float(os.getenv("HTTP_TIMEOUT", "20"))
 # Cap extracted page text so a single read_url can't overflow the LLM context.
 # ~12k chars ≈ ~3k tokens, leaving room for history within an 8k window.
