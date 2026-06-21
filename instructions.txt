@@ -1,0 +1,64 @@
+pip install huggingface-hub
+
+huggingface-cli download nomic-ai/nomic-embed-text-v1.5-GGUF nomic-embed-text-v1.5.Q8_0.gguf --local-dir .
+
+pip install huggingface-hub
+huggingface-cli download nomic-ai/nomic-embed-text-v1.5-GGUF nomic-embed-text-v1.5.Q8_0.gguf --local-dir .
+
+# Start a local server dedicated to embeddings.
+# NOTE: the embedding server MUST use a different port from the chat server.
+# The chat model runs on :8081; embeddings run on :8082. Do not reuse :8081 here,
+# or chat requests sent to this server return:
+#   500 "the current context does not logits computation. skipping"
+./llama-server -m /path/to/autonomous-researcher/nomic-embed-text-v1.5.Q8_0.gguf -c 8192 --embedding --pooling mean --port 8082
+
+curl http://localhost:8082/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "nomic-embed-text-v1.5.Q8_0.gguf",
+    "input": "Your text prompt here"
+  }'
+
+pip install llama-cpp-python
+
+
+from llama_cpp import Llama
+
+# Initialize the model strictly for embedding tasks
+embd = Llama(
+    model_path="./nomic-embed-text-v1.5.Q8_0.gguf", 
+    embedding=True, 
+    n_ctx=8192
+)
+
+# Nomic requires a search prefix prefix depending on the task
+# Options: 'search_query: ' or 'search_document: '
+text = "search_query: What is the optimal pipeline structure for autonomous AI agents?"
+output = embd.embed(text)
+
+print("Embedding vector length:", len(output))
+print("Vector preview:", output[:5])
+
+cat << 'EOF' > test_embed.py
+from llama_cpp import Llama
+
+embd = Llama(
+    model_path="./nomic-embed-text-v1.5.Q8_0.gguf", 
+    embedding=True, 
+    n_ctx=8192
+)
+
+text = "search_query: What is the optimal pipeline structure for autonomous AI agents?"
+output = embd.embed(text)
+
+print("Embedding vector length:", len(output))
+print("Vector preview:", output[:5])
+EOF
+
+pip install huggingface-hub
+huggingface-cli download nomic-ai/nomic-embed-text-v1.5-GGUF nomic-embed-text-v1.5.Q8_0.gguf --local-dir .
+
+hf download nomic-ai/nomic-embed-text-v1.5-GGUF nomic-embed-text-v1.5.Q8_0.gguf
+
+ln -s /Users/caribou/.cache/huggingface/hub/models--nomic-ai--nomic-embed-text-v1.5-GGUF/snapshots/0188c9bf409793f810680a5a431e7b899c46104c/nomic-embed-text-v1.5.Q8_0.gguf ./nomic-embed-text-v1.5.Q8_0.gguf
+
