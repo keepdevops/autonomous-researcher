@@ -1,0 +1,15 @@
+# Local-only runtime artifacts — never commit these.
+__pycache__/
+*.pyc
+
+# Leftover from an earlier sqlite experiment (the agent uses Qdrant now).
+memory.db
+
+# LIVE Qdrant data volume — the dockerized Qdrant on :6333 bind-mounts this
+# directory to /qdrant/storage. Do NOT delete it while the container is running
+# and do NOT commit it; it is local machine state, not source.
+qdrant_storage/
+
+# Durable run checkpoints/events (local execution state).
+runs.db
+runs.db-*

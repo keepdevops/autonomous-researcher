@@ -1,0 +1,7 @@
+# Dense embeddings come from the llama.cpp server (../start-embed.sh).
+# Vector store is Qdrant (docker, :6333); fastembed supplies the BM25 sparse
+# vectors for hybrid search.
+qdrant-client[fastembed]>=1.18.0
+rich>=13.7.0
+httpx>=0.27.0
+pydantic>=2.8.0
