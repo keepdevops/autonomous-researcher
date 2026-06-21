@@ -37,7 +37,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-COPY app.py main.py tools.py searcher.py rendering.py research_engine.py ./
+COPY app.py main.py tools.py searcher.py rendering.py research_engine.py research_persist.py ./
 COPY static/ ./static/
 COPY observer/ ./observer/
 COPY ingest/ ./ingest/

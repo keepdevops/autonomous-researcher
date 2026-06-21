@@ -259,8 +259,13 @@ def step_finalize(state: RunState) -> dict:
         footer.append(f"- **[{c.id}]** ({mark}) {c.text[:120]}… [{urls}]{note}")
     final = report + "\n".join(footer)
     state.scratch["final_report"] = final
+    from research_persist import persist_research_report
+
+    state.scratch["memory_persist"] = persist_research_report(
+        state.run_id, state.goal, final
+    )
     _observe_agent(state, "finalize", "done", detail=f"{len(final)} chars")
-    return {"report": final, "chars": len(final)}
+    return {"report": final, "chars": len(final), "memory_persist": state.scratch["memory_persist"]}
 
 
 def build_graph() -> Graph:
