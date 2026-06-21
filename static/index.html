@@ -64,6 +64,18 @@
       padding: 2px 5px; border-radius: 4px;
     }
     #report ul { padding-left: var(--space-lg); }
+    #steps {
+      display: none; flex-wrap: wrap; gap: 6px; margin-bottom: var(--space-md);
+      font-size: 0.8rem;
+    }
+    #steps.visible { display: flex; }
+    .step {
+      padding: 4px 10px; border-radius: 999px; border: 1px solid var(--color-border);
+      color: var(--color-muted); background: var(--color-surface);
+    }
+    .step.running { color: var(--color-accent); border-color: var(--color-accent); }
+    .step.done { color: var(--color-success); border-color: var(--color-success); }
+    .step.failed { color: var(--color-error); border-color: var(--color-error); }
   </style>
 </head>
 <body>
@@ -75,6 +87,7 @@
              autocomplete="off" required minlength="3" maxlength="2000" />
       <button id="submit" type="submit">Research</button>
     </form>
+    <div id="steps" aria-label="Pipeline progress"></div>
     <div id="status" role="status" aria-live="polite"></div>
     <article id="report"></article>
   </main>
@@ -84,6 +97,71 @@
     const button = document.getElementById("submit");
     const statusEl = document.getElementById("status");
     const reportEl = document.getElementById("report");
+    const stepsEl = document.getElementById("steps");
+    const PLAN_STEPS = ["plan", "search", "ingest", "synthesize", "verify", "critique", "finalize"];
+    const stepState = Object.fromEntries(PLAN_STEPS.map(s => [s, "pending"]));
+
+    function initSteps() {
+      stepsEl.innerHTML = "";
+      for (const name of PLAN_STEPS) {
+        stepState[name] = "pending";
+        const el = document.createElement("span");
+        el.className = "step";
+        el.id = "step-" + name;
+        el.textContent = name;
+        stepsEl.appendChild(el);
+      }
+      stepsEl.classList.add("visible");
+    }
+
+    function updateStep(name, state) {
+      if (!PLAN_STEPS.includes(name)) return;
+      if (state === "running" && stepState[name] === "done") return;
+      stepState[name] = state;
+      const el = document.getElementById("step-" + name);
+      if (el) el.className = "step " + state;
+    }
+
+    function handleStreamEvent(ev) {
+      if (ev.type === "step" && ev.step) {
+        const st = ev.status;
+        if (st === "running" || st === "start" || st === "phase") updateStep(ev.step, "running");
+        else if (st === "done") updateStep(ev.step, "done");
+        else if (st === "failed") updateStep(ev.step, "failed");
+        if (ev.detail) setStatus("loading", `${ev.step}: ${ev.detail}`, true);
+      }
+    }
+
+    async function streamResearch(question) {
+      const resp = await fetch("/api/research/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question }),
+      });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.detail || `Request failed (HTTP ${resp.status})`);
+      }
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() || "";
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data: ")) continue;
+          const ev = JSON.parse(line.slice(6));
+          handleStreamEvent(ev);
+          if (ev.type === "complete") return ev.report || "";
+          if (ev.type === "error") throw new Error(ev.detail || "Research failed");
+        }
+      }
+      throw new Error("Stream ended without a report");
+    }
 
     function setStatus(kind, text, withSpinner = false) {
       statusEl.className = kind;
@@ -129,20 +207,13 @@
       button.disabled = true;
       reportEl.classList.remove("visible");
       reportEl.innerHTML = "";
-      setStatus("loading", "Plan A research… search → ingest → verify. May take several minutes.", true);
+      initSteps();
+      setStatus("loading", "Plan A research… streaming step progress.", true);
 
       try {
-        const resp = await fetch("/api/research", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question }),
-        });
-        const data = await resp.json().catch(() => ({}));
-        if (!resp.ok) {
-          throw new Error(data.detail || `Request failed (HTTP ${resp.status})`);
-        }
+        const report = await streamResearch(question);
         setStatus("success", "Done.");
-        reportEl.innerHTML = renderMarkdown(data.report || "");
+        reportEl.innerHTML = renderMarkdown(report || "");
         reportEl.classList.add("visible");
       } catch (err) {
         setStatus("error", `Error: ${err.message}`);

@@ -15,6 +15,7 @@ from research_graph import store as graph_store
 from research_graph.commentary import add_commentary
 from research_graph.verify import verify_graph
 from tools import search_web, fetch_and_ingest_url
+from http_client import url_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ def step_search(state: RunState) -> dict:
     for q in queries:
         for row in search_web({"query": q, "num_results": MAX_SEARCH_RESULTS}):
             url = row.get("url", "")
-            if url and url not in seen:
+            if url and url not in seen and url_allowed(url):
                 seen.add(url)
                 hits.append(row)
     _observe_agent(state, "search", "done", detail=f"{len(hits)} hits")

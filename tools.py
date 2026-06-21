@@ -9,6 +9,8 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field, field_validator
 from rich.console import Console
 
+from http_client import default_headers, url_allowed
+
 console = Console()
 logger = logging.getLogger(__name__)
 
@@ -109,7 +111,14 @@ def search_web(args: dict) -> List[Dict[str, str]]:
 
 def fetch_url_html(url: str) -> tuple[str, str | None]:
     """Fetch raw HTML and page title."""
-    resp = httpx.get(url, timeout=HTTP_TIMEOUT, follow_redirects=True)
+    if not url_allowed(url):
+        raise ValueError(f"URL blocked by RESEARCH_URL_ALLOWLIST: {url}")
+    resp = httpx.get(
+        url,
+        timeout=HTTP_TIMEOUT,
+        follow_redirects=True,
+        headers=default_headers(),
+    )
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "lxml")
     title = soup.title.string.strip() if soup.title and soup.title.string else None
