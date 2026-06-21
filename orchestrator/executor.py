@@ -22,7 +22,7 @@ def _deps_done(graph: Graph, state: RunState, name: str) -> bool:
         if any(s == Status.DONE for s in dep_status):
             return all(s in SETTLED for s in dep_status)
         return False
-    return all(s == Status.DONE for s in dep_status)
+    return all(s in SETTLED for s in dep_status)
 
 
 def _ready(graph: Graph, state: RunState) -> list[str]:
@@ -125,6 +125,8 @@ def resume_state(graph: Graph, state: RunState) -> RunState:
         step = graph.steps[st.name]
         if st.status == Status.FAILED and st.attempts < step.max_attempts:
             st.status, st.error = Status.PENDING, None
+        elif st.status == Status.SKIPPED and st.error:
+            st.status, st.error, st.output = Status.PENDING, None, None
         elif st.status == Status.AWAITING_APPROVAL and state.approved(st.name):
             st.status = Status.PENDING
     return state

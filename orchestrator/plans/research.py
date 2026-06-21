@@ -12,6 +12,8 @@ from orchestrator.graph import Graph, Step
 from orchestrator.state import RunState
 from research_graph.models import Claim, ResearchGraph
 from research_graph import store as graph_store
+from research_graph.commentary import add_commentary
+from research_graph.verify import verify_graph
 from tools import search_web, fetch_and_ingest_url
 
 logger = logging.getLogger(__name__)
@@ -214,9 +216,6 @@ def step_synthesize(state: RunState) -> dict:
 def step_verify(state: RunState) -> dict:
     _observe_agent(state, "verify", "start")
     _observe_phase(state, RunPhase.VERIFYING)
-    from research_graph.commentary import add_commentary
-    from research_graph.verify import verify_graph
-
     graph = graph_store.load(state.run_id)
     chunks = {c["id"]: c for c in state.chunks()}
     graph, unsupported = verify_graph(graph, chunks)
