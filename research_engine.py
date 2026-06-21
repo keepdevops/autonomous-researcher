@@ -11,12 +11,12 @@ from orchestrator.state import RunState, Status
 logger = logging.getLogger(__name__)
 
 
-def run_research_plan(question: str) -> str:
+def run_research_plan(question: str, run_id: str | None = None) -> str:
     from observer import ensure, publish
     from observer.events import Component, EventKind, SystemEvent
 
     ensure()
-    run_id = uuid.uuid4().hex[:8]
+    run_id = run_id or uuid.uuid4().hex[:8]
     state = RunState(run_id=run_id, goal=question)
     publish(
         SystemEvent(

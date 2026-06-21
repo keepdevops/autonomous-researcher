@@ -165,6 +165,8 @@ docker compose up --build
 | `MAX_CHUNK_TOKENS` | `1024` | Ingest chunk cap |
 | `EMBED_BASE_URL` | — | Enable semantic boundary splits (`:8082`) |
 | `SEMANTIC_BOUNDARY_THRESHOLD` | `0.35` | Cosine cut between sentences |
+| `HTTP_USER_AGENT` | Chrome-like + `AutonomousResearcher/2.0` | Browser-like fetch headers |
+| `RESEARCH_URL_ALLOWLIST` | — | Comma-separated hostnames; empty = all URLs |
 
 ### Legacy mode
 
