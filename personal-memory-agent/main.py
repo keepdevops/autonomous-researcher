@@ -5,6 +5,7 @@ on :8082 (see memory.py / embedder.py). Run the servers first:
     ../start-llm.sh     # chat model, :8081
     ../start-embed.sh   # embedding model, :8082
 """
+import _repo_path  # noqa: F401
 import os
 import logging
 import threading
@@ -82,6 +83,21 @@ def _build_messages(user_input: str) -> list[dict]:
 
 
 def chat_once(user_input: str) -> str:
+    try:
+        from observer import publish
+        from observer.events import Component, EventKind, SystemEvent
+
+        publish(
+            SystemEvent(
+                component=Component.MEMORY,
+                kind=EventKind.LIFECYCLE,
+                status="chat_turn",
+                detail=user_input[:120],
+                metadata={"chars": len(user_input)},
+            )
+        )
+    except Exception:
+        pass
     resp = client.post(
         "/chat/completions",
         json={
@@ -125,6 +141,12 @@ if __name__ == "__main__":
     import sys
 
     import preflight  # imported here to avoid a circular import at module load
+
+    try:
+        from observer import ensure
+        ensure()
+    except Exception:
+        pass
 
     try:
         preflight.check()

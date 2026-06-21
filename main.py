@@ -91,8 +91,38 @@ def run_tool_call(tool_call: Dict[str, Any]) -> str:
     return result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
 
 
+def _observe(status: str, detail: str = "", **metadata) -> None:
+    try:
+        from observer import ensure, publish
+        from observer.events import Component, EventKind, SystemEvent
+
+        ensure()
+        publish(
+            SystemEvent(
+                component=Component.RESEARCHER,
+                kind=EventKind.LIFECYCLE,
+                status=status,
+                detail=detail,
+                metadata=metadata,
+            )
+        )
+    except Exception as exc:
+        logger.debug("observer emit skipped: %s", exc)
+
+
 def research(question: str) -> str:
-    """Run the agentic loop for one question and return the final report text."""
+    """Run research — Plan A orchestrator by default, legacy tool-loop optional."""
+    mode = os.getenv("RESEARCH_MODE", "plan_a").strip().lower()
+    if mode == "legacy":
+        return research_legacy(question)
+    from research_engine import run_research_plan
+
+    return run_research_plan(question)
+
+
+def research_legacy(question: str) -> str:
+    """Original agentic tool loop (search/read/write until report)."""
+    _observe("start", question[:200], question=question[:500], mode="legacy")
     messages: List[Dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question},
@@ -110,9 +140,11 @@ def research(question: str) -> str:
                     consecutive_errors, MAX_CONSECUTIVE_LLM_ERRORS, step, exc,
                 )
                 if consecutive_errors >= MAX_CONSECUTIVE_LLM_ERRORS:
+                    _observe("failed", str(exc), step=step, consecutive=consecutive_errors)
                     raise RuntimeError(
                         f"LLM failed {consecutive_errors} times in a row: {exc}"
                     ) from exc
+                _observe("llm_error", str(exc), step=step, consecutive=consecutive_errors)
                 # Nudge the model to recover (e.g. emit one well-formed tool call).
                 messages.append({
                     "role": "user",
@@ -131,7 +163,9 @@ def research(question: str) -> str:
                 content = message.get("content") or ""
                 if not content.strip():
                     logger.error("research: empty final message at step %d", step)
+                    _observe("failed", "empty final answer", step=step)
                     raise RuntimeError("LLM returned an empty final answer")
+                _observe("complete", step=step, chars=len(content))
                 return content
 
             for tool_call in tool_calls:
@@ -145,6 +179,7 @@ def research(question: str) -> str:
                 )
 
     logger.error("research: hit MAX_ITERATIONS=%d without a final answer", MAX_ITERATIONS)
+    _observe("failed", f"max iterations ({MAX_ITERATIONS})")
     raise RuntimeError(f"No final answer after {MAX_ITERATIONS} iterations")
 
 
@@ -164,6 +199,11 @@ def main(argv: List[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s"
     )
+    try:
+        from observer import ensure
+        ensure()
+    except Exception as exc:
+        logger.debug("observer install skipped: %s", exc)
     args = _parse_args(sys.argv[1:] if argv is None else argv)
 
     question = " ".join(args.question).strip()

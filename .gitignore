@@ -6,3 +6,11 @@ __pycache__/
 .env
 models/
 *.gguf
+observer/system_events.db
+observer/system_events.db-*
+research_graph/graph.db
+research_graph/graph.db-*
+retrieval/chunks.db
+retrieval/chunks.db-*
+research_runs.db
+research_runs.db-*

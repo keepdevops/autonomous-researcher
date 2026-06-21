@@ -13,6 +13,7 @@ VENV="${VENV:-$HERE/.venv}"
 
 export LLM_BASE_URL="${LLM_BASE_URL:-http://127.0.0.1:8081/v1}"
 export SEARXNG_URL="${SEARXNG_URL:-http://localhost:8888}"
+export PYTHONPATH="${PYTHONPATH:-}:$HERE"
 
 if [ ! -x "$VENV/bin/python" ]; then
     echo "❌ Error: venv missing at $VENV. Run ./setup.sh first." >&2

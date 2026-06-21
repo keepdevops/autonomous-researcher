@@ -8,6 +8,7 @@
 `run`/`resume` walk the graph until it completes, fails, or hits an approval
 gate. `status` renders the plan with live checkmarks plus the event trace.
 """
+import _repo_path  # noqa: F401 — repo root on sys.path for observer
 import argparse
 import asyncio
 import logging
@@ -21,9 +22,11 @@ import checkpoint
 import preflight
 from example_plan import build_graph
 from executor import execute, resume_state
+from observer import ensure, store as observer_store
 from state import RunState, Status
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+ensure()
 console = Console()
 
 GLYPH = {
@@ -44,11 +47,22 @@ def render(state: RunState) -> None:
         glyph = GLYPH.get(st.status, "?") if st else "[dim]▢[/dim]"
         extra = f"  [red]{st.error}[/red]" if st and st.error else ""
         console.print(f"  {glyph} [cyan]{i:>2}.[/cyan] {name}{extra}")
-    console.print("\n[bold]Events[/bold]")
+    console.print("\n[bold]Events[/bold] (orchestrator)")
     for ts, step, status, detail in checkpoint.events(state.run_id, limit=80):
         t = datetime.fromtimestamp(ts).strftime("%H:%M:%S")
         d = f"  {detail}" if detail else ""
         console.print(f"  [dim]{t}[/dim] {step:<12} [dim]{status}[/dim]{d}")
+    cross = observer_store.list_events(run_id=state.run_id, limit=40)
+    if cross:
+        console.print("\n[bold]Cross-component[/bold]")
+        for ts, component, kind, step, status, detail, _meta in reversed(cross):
+            t = datetime.fromtimestamp(ts).strftime("%H:%M:%S")
+            st = step or "-"
+            d = f"  {detail}" if detail else ""
+            console.print(
+                f"  [dim]{t}[/dim] [{component}/{kind}] {st:<12} "
+                f"[dim]{status}[/dim]{d}"
+            )
 
 
 def _final_banner(state: RunState) -> None:

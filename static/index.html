@@ -69,7 +69,7 @@
 <body>
   <main>
     <h1>🔎 Autonomous Researcher</h1>
-    <p class="sub">Local LLM + SearXNG. Ask a question; the agent searches, reads, and cites.</p>
+    <p class="sub">Plan A: SearXNG → ingest → verify. <a href="/monitor" style="color:var(--color-accent)">Live monitor</a></p>
     <form id="form">
       <input id="question" type="text" placeholder="What is the latest stable Python release?"
              autocomplete="off" required minlength="3" maxlength="2000" />
@@ -129,7 +129,7 @@
       button.disabled = true;
       reportEl.classList.remove("visible");
       reportEl.innerHTML = "";
-      setStatus("loading", "Researching… this can take a minute on a local model.", true);
+      setStatus("loading", "Plan A research… search → ingest → verify. May take several minutes.", true);
 
       try {
         const resp = await fetch("/api/research", {

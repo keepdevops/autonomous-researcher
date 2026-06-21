@@ -6,6 +6,7 @@ cryptic mid-run 500 ("the current context does not logits computation. skipping"
 This module probes both endpoints up front and aborts with a clear message if the
 ports are crossed, unreachable, or the wrong kind of server.
 """
+import _repo_path  # noqa: F401
 import logging
 
 import httpx
@@ -71,13 +72,39 @@ def _check_embed(base_url: str) -> None:
         )
 
 
+def _observe(status: str, detail: str = "", **metadata) -> None:
+    try:
+        from observer import ensure, publish
+        from observer.events import Component, EventKind, SystemEvent
+
+        ensure()
+        publish(
+            SystemEvent(
+                component=Component.PREFLIGHT,
+                kind=EventKind.HEALTH,
+                status=status,
+                detail=detail,
+                metadata=metadata,
+            )
+        )
+    except Exception as e:
+        logger.debug("observer emit skipped: %s", e)
+
+
 def check(chat_url: str = CHAT_BASE_URL, embed_url: str = EMBED_BASE_URL) -> None:
     """Verify both servers are up and of the correct kind. Raises PreflightError."""
     if chat_url.rstrip("/") == embed_url.rstrip("/"):
-        raise PreflightError(
+        err = (
             f"chat and embedding endpoints are identical ({chat_url}); they must be "
             f"two separate servers (chat :8081, embeddings :8082)."
         )
-    _check_chat(chat_url)
-    _check_embed(embed_url)
+        _observe("failed", err)
+        raise PreflightError(err)
+    try:
+        _check_chat(chat_url)
+        _check_embed(embed_url)
+    except PreflightError as e:
+        _observe("failed", str(e))
+        raise
+    _observe("ok", chat_url=chat_url, embed_url=embed_url)
     logger.info("Preflight OK — chat %s, embeddings %s", chat_url, embed_url)

@@ -1,3 +1,4 @@
+import json
 import os
 import logging
 from pathlib import Path
@@ -25,6 +26,10 @@ class SearchQuery(BaseModel):
 
 class ReadUrl(BaseModel):
     url: str = Field(..., description="Full URL to fetch and extract clean text from")
+
+
+class IngestFile(BaseModel):
+    path: str = Field(..., description="Relative path to a local file to ingest")
 
 
 class WriteFile(BaseModel):
@@ -56,6 +61,14 @@ TOOLS_SCHEMAS = [
             "name": "read_url",
             "description": "Fetch a webpage and return a clean markdown body.",
             "parameters": ReadUrl.model_json_schema(),
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ingest_file",
+            "description": "Ingest a local file (pdf, md, code, text) into Plan A chunks.",
+            "parameters": IngestFile.model_json_schema(),
         },
     },
     {
@@ -94,30 +107,59 @@ def search_web(args: dict) -> List[Dict[str, str]]:
     ]
 
 
+def fetch_url_html(url: str) -> tuple[str, str | None]:
+    """Fetch raw HTML and page title."""
+    resp = httpx.get(url, timeout=HTTP_TIMEOUT, follow_redirects=True)
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "lxml")
+    title = soup.title.string.strip() if soup.title and soup.title.string else None
+    return resp.text, title
+
+
+def fetch_and_ingest_url(url: str, title: str | None = None):
+    """Fetch a URL from the internet and return Plan A ingest chunks."""
+    from ingest import ingest_document
+
+    html, page_title = fetch_url_html(url)
+    return ingest_document(
+        html,
+        doc_type="web",
+        source_url=url,
+        title=title or page_title,
+    )
+
+
 def read_url(args: dict) -> str:
-    """Fetch a webpage and return its main text as a clean markdown-ish body."""
+    """Fetch a webpage, ingest into chunks, return excerpt for the agent."""
     params = ReadUrl.model_validate(args)
     try:
-        resp = httpx.get(
-            params.url, timeout=HTTP_TIMEOUT, follow_redirects=True
-        )
-        resp.raise_for_status()
+        chunks = fetch_and_ingest_url(params.url)
     except httpx.HTTPError as exc:
         logger.error("read_url failed for %r: %s", params.url, exc)
         raise RuntimeError(f"Fetch failed: {exc}") from exc
 
-    soup = BeautifulSoup(resp.text, "lxml")
-    for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
-        tag.decompose()
-    lines = [ln.strip() for ln in soup.get_text("\n").splitlines() if ln.strip()]
-    text = "\n".join(lines)
-    if len(text) > READ_URL_MAX_CHARS:
-        logger.warning(
-            "read_url: truncated %r from %d to %d chars",
-            params.url, len(text), READ_URL_MAX_CHARS,
-        )
-        text = text[:READ_URL_MAX_CHARS] + "\n\n[...truncated...]"
-    return text
+    if not chunks:
+        return "(empty page)"
+    preview = []
+    for ch in chunks[:5]:
+        meta = ch.metadata
+        header = meta.section or meta.title or params.url
+        preview.append(f"### {header} [{ch.id}]\n{ch.text[:800]}")
+    body = "\n\n".join(preview)
+    if len(chunks) > 5:
+        body += f"\n\n[...{len(chunks) - 5} more chunks ingested...]"
+    return body
+
+
+def ingest_file(args: dict) -> str:
+    params = IngestFile.model_validate(args)
+    resolved = Path(params.path).resolve()
+    cwd = Path.cwd().resolve()
+    if ".." in Path(params.path).parts or not str(resolved).startswith(str(cwd)):
+        raise ValueError("Path traversal attempt blocked")
+    chunks = ingest_path(str(resolved))
+    preview = [f"[{c.id}] {c.text[:400]}" for c in chunks[:5]]
+    return json.dumps({"chunk_count": len(chunks), "preview": preview}, ensure_ascii=False)
 
 
 def write_file(args: dict) -> str:
@@ -136,8 +178,29 @@ def write_file(args: dict) -> str:
 TOOL_FUNCTIONS: Dict[str, Callable[[dict], object]] = {
     "search_web": search_web,
     "read_url": read_url,
+    "ingest_file": ingest_file,
     "write_file": write_file,
 }
+
+
+def _observe_tool(name: str, status: str, detail: str = "", **metadata) -> None:
+    try:
+        from observer import ensure, publish
+        from observer.events import Component, EventKind, SystemEvent
+
+        ensure()
+        publish(
+            SystemEvent(
+                component=Component.TOOLS,
+                kind=EventKind.TOOL,
+                step=name,
+                status=status,
+                detail=detail,
+                metadata=metadata,
+            )
+        )
+    except Exception as exc:
+        logger.debug("observer emit skipped: %s", exc)
 
 
 def dispatch_tool(name: str, args: dict) -> object:
@@ -145,5 +208,13 @@ def dispatch_tool(name: str, args: dict) -> object:
     fn = TOOL_FUNCTIONS.get(name)
     if fn is None:
         logger.error("dispatch_tool: unknown tool %r", name)
+        _observe_tool(name, "unknown", f"Unknown tool: {name}")
         raise ValueError(f"Unknown tool: {name}")
-    return fn(args)
+    _observe_tool(name, "start", metadata=args)
+    try:
+        result = fn(args)
+    except Exception as exc:
+        _observe_tool(name, "failed", str(exc), metadata=args)
+        raise
+    _observe_tool(name, "ok", metadata={"args": args, "result_type": type(result).__name__})
+    return result
