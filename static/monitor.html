@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plan A Monitor</title>
+  <style>
+    :root {
+      --bg: #0f1115; --surface: #1a1d24; --border: #2a2f3a;
+      --text: #e6e9ef; --muted: #9aa3b2; --accent: #5b9dff;
+    }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+    main { max-width: 960px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.25rem; margin: 0 0 8px; }
+    .sub { color: var(--muted); margin-bottom: 16px; font-size: 0.9rem; }
+    a { color: var(--accent); }
+    #log {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px; height: 70vh; overflow-y: auto;
+      font-family: ui-monospace, monospace; font-size: 12px;
+    }
+    .row { padding: 4px 0; border-bottom: 1px solid var(--border); }
+    .tag { color: var(--accent); }
+    .agent { color: #4ade80; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Observer — Plan A live</h1>
+    <p class="sub"><a href="/">← Research UI</a> · SSE from <code>/api/events/stream</code></p>
+    <div id="log"></div>
+  </main>
+  <script>
+    const log = document.getElementById("log");
+    let since = 0;
+    function esc(s) {
+      return String(s).replace(/[<>&]/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]));
+    }
+    function append(ev) {
+      const t = new Date(ev.ts * 1000).toLocaleTimeString();
+      const div = document.createElement("div");
+      div.className = "row";
+      div.innerHTML = `<span class="tag">${esc(t)}</span> `
+        + `[${esc(ev.component)}/${esc(ev.kind)}] `
+        + `<span class="agent">${esc(ev.step || "-")}</span> `
+        + `${esc(ev.status)} ${esc(ev.detail || "")}`;
+      log.prepend(div);
+    }
+    const es = new EventSource("/api/events/stream?since=" + since);
+    es.onmessage = (e) => {
+      try { append(JSON.parse(e.data)); } catch (_) {}
+    };
+    es.onerror = () => {
+      const div = document.createElement("div");
+      div.className = "row";
+      div.textContent = "Stream disconnected — retrying…";
+      log.prepend(div);
+    };
+  </script>
+</body>
+</html>

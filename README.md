@@ -15,7 +15,7 @@ User ──▶ main.py (CLI)  or  app.py (FastAPI + web UI)
        research() agent loop  ── calls ──▶ llama.cpp /v1 server  (:8081)
               │
               ▼
-       tools.py: search_web / read_url / write_file
+       tools.py: search_web / read_url / ingest_file / write_file
               │                  │
               ▼                  ▼
        SearXNG (:8888)      web pages (HTTP)
@@ -105,3 +105,77 @@ Everything is overridable via environment variables:
 | `HTTP_TIMEOUT` | `20` | tools |
 | `PORT` (llama.cpp) | `8081` | `start-llm.sh` |
 | `MODEL_FILE` / `MODEL` | `Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf` | `start-llm.sh` |
+
+## Plan A (default research mode)
+
+By default `research()` runs the **Plan A orchestrator** (`RESEARCH_MODE=plan_a`):
+SearXNG search → web ingest (chunked) → cited synthesis → claim verification → report.
+
+```
+User ──▶ main.py / app.py
+              │
+              ▼
+       research_engine.run_research_plan()
+              │
+              ▼
+   plan → search → ingest → synthesize → verify → critique → finalize
+              │       │        │
+              ▼       ▼        ▼
+          SearXNG  Internet  ingest/ (≤1024-token chunks)
+              │
+              ▼
+       research_graph/ (claims + verification footer)
+              │
+              ▼
+       observer/ (cross-component event bus)
+```
+
+### Run Plan A
+
+```bash
+./start-llm.sh
+./start-searxng.sh
+# optional semantic chunk boundaries:
+./start-embed.sh
+
+./run.sh "What changed in Python 3.13?"
+./serve.sh                    # http://127.0.0.1:8800
+# live events: http://127.0.0.1:8800/monitor
+
+python -m orchestrator.cli run "your question"
+python -m observer tail
+python -m ingest path/to/doc.pdf
+```
+
+### Docker
+
+```bash
+docker compose up --build
+# LLM still on host :8081 — set LLM_BASE_URL=http://host.docker.internal:8081/v1
+```
+
+### Plan A configuration
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `RESEARCH_MODE` | `plan_a` | Set `legacy` for the original tool loop |
+| `RESEARCH_ALLOW_UNVERIFIED` | off | Set `1` to publish with unsupported claims |
+| `RESEARCH_PERSIST_MEMORY` | off | Set `1` to save report to Qdrant via memory agent |
+| `RESEARCH_MAX_URLS` | `6` | Max URLs ingested per run |
+| `MAX_CHUNK_TOKENS` | `1024` | Ingest chunk cap |
+| `EMBED_BASE_URL` | — | Enable semantic boundary splits (`:8082`) |
+| `SEMANTIC_BOUNDARY_THRESHOLD` | `0.35` | Cosine cut between sentences |
+
+### Legacy mode
+
+```bash
+RESEARCH_MODE=legacy ./run.sh "your question"
+```
+
+Uses the original LLM tool loop (`search_web`, `read_url`, `write_file`) in `main.py`.
+
+## personal-memory-agent
+
+See [`personal-memory-agent/README.md`](personal-memory-agent/README.md) for the
+lifelong chat assistant with Qdrant recall. When `RESEARCH_PERSIST_MEMORY=1`, Plan A
+reports are stored in `agent_memories` and can be recalled in chat.

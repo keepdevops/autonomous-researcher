@@ -1,0 +1,21 @@
+services:
+  searxng:
+    image: searxng/searxng:latest
+    ports:
+      - "8888:8080"
+    volumes:
+      - ./searxng:/etc/searxng:ro
+
+  researcher:
+    build: .
+    ports:
+      - "8800:8800"
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8081/v1}
+      SEARXNG_URL: http://searxng:8080
+      RESEARCH_MODE: plan_a
+      EMBED_BASE_URL: ${EMBED_BASE_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - searxng

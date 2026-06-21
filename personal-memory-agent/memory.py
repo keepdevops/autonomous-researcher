@@ -5,6 +5,7 @@ Each memory becomes one Qdrant point carrying two vectors:
   bm25   — sparse term-frequency vector (lexical match, IDF-weighted by Qdrant)
 Queries run both and fuse the rankings with Reciprocal Rank Fusion (RRF).
 """
+import _repo_path  # noqa: F401
 import os
 import uuid
 import logging
@@ -45,6 +46,29 @@ def _ensure_collection() -> None:
 _ensure_collection()
 
 
+def _observe(kind: str, status: str, detail: str = "", **metadata) -> None:
+    try:
+        from observer import ensure, publish
+        from observer.events import Component, EventKind, SystemEvent
+
+        ensure()
+        publish(
+            SystemEvent(
+                component=Component.MEMORY,
+                kind=EventKind.RETRIEVAL if kind == "search" else EventKind.STORAGE,
+                status=status,
+                detail=detail,
+                metadata=metadata,
+            )
+        )
+    except Exception as e:
+        logger.debug("observer emit skipped: %s", e)
+
+
+def _observe_storage(action: str, point_id: str, role: str, size: int) -> None:
+    _observe("store", action, point_id=point_id, role=role, chars=size)
+
+
 def add_memory(role: str, content: str, metadata: Optional[dict] = None) -> str:
     """Embed (dense + sparse) and upsert one memory. Returns the point id."""
     if not role or not content:
@@ -58,6 +82,7 @@ def add_memory(role: str, content: str, metadata: Optional[dict] = None) -> str:
     point_id = str(uuid.uuid4())
 
     try:
+        _observe_storage("upsert", point_id, role, len(content))
         client.upsert(
             collection_name=COLLECTION,
             points=[
@@ -79,6 +104,7 @@ def add_memory(role: str, content: str, metadata: Optional[dict] = None) -> str:
         )
     except Exception as e:
         logger.error("Qdrant upsert failed for memory %s: %s", point_id, e)
+        _observe("store", "failed", str(e), point_id=point_id, role=role)
         raise
     return point_id
 
@@ -124,8 +150,11 @@ def search_memories(query: str, k: int = 8) -> List[Dict[str, Any]]:
         )
     except Exception as e:
         logger.error("Qdrant hybrid query failed: %s", e)
+        _observe("search", "failed", str(e), query=query[:120])
         raise
-    return [_row(pt) for pt in result.points]
+    hits = [_row(pt) for pt in result.points]
+    _observe("search", "ok", query=query[:120], k=k, hits=len(hits))
+    return hits
 
 
 def recent_memories(role: str, days: int, limit: int = 200) -> List[str]:

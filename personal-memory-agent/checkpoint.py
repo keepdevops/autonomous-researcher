@@ -5,6 +5,7 @@ RunState per run_id (resume source of truth). `events` is an append-only trace
 of every transition (observability). SQLite gives atomic, server-free durability
 -- distinct from the Qdrant *memory* store, which holds chat recall, not run state.
 """
+import _repo_path  # noqa: F401
 import json
 import logging
 import os
@@ -78,11 +79,29 @@ def list_runs() -> list[tuple[str, str, float]]:
 
 def emit(run_id: str, step: str, status: str, detail: str = "") -> None:
     """Append one trace event. Failures here must never abort a run."""
+    ts = time.time()
+    try:
+        from observer.events import Component, EventKind, SystemEvent
+        from observer.hub import publish
+
+        publish(
+            SystemEvent(
+                component=Component.ORCHESTRATOR,
+                kind=EventKind.STEP,
+                run_id=run_id,
+                step=step,
+                status=status,
+                detail=detail,
+                ts=ts,
+            )
+        )
+    except Exception as e:
+        logger.error("Observer publish failed (%s/%s): %s", run_id, step, e)
     try:
         with _lock:
             _conn.execute(
                 "INSERT INTO events(run_id, step, status, detail, ts) VALUES(?,?,?,?,?)",
-                (run_id, step, status, detail, time.time()),
+                (run_id, step, status, detail, ts),
             )
     except sqlite3.Error as e:
         logger.error("Event emit failed (%s/%s): %s", run_id, step, e)
